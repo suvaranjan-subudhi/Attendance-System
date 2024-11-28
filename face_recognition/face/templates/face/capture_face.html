@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Capture</title>
+</head>
+<body>
+    <h1>Face Data Capture</h1>
+    <video id="video" autoplay playsinline width="640" height="480"></video>
+    <canvas id="canvas" style="display:none;"></canvas>
+    <p id="status">Samples captured: 0/50</p>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
+        const status = document.getElementById('status');
+        let sampleCount = 0;
+
+        // Access the webcam
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                video.srcObject = stream;
+            })
+            .catch(err => console.error("Error accessing webcam: ", err));
+
+        // Capture frames every second and send them to the Django backend
+        setInterval(() => {
+            if (sampleCount >= 50) return;
+
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const frameData = canvas.toDataURL('image/jpeg');
+
+            // Send the frame to the backend via AJAX
+            fetch('/capture-face/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}' // Include CSRF token for Django
+                },
+                body: JSON.stringify({ image: frameData })
+            })
+            .then(response => response.json())
+            .then(data => {
+                sampleCount = data.samples_captured;
+                status.textContent = `Samples captured: ${sampleCount}/50`;
+
+                if (sampleCount >= 50) {
+                    alert('Face data capture completed.');
+                }
+            })
+            .catch(err => console.error("Error sending frame data: ", err));
+        }, 1000); // Capture every second
+    </script>
+</body>
+</html>
